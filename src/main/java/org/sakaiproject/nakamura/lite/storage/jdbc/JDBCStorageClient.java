@@ -39,6 +39,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.commons.lang.StringUtils;
+import org.sakaiproject.nakamura.api.lite.CacheHolder;
 import org.sakaiproject.nakamura.api.lite.ClientPoolException;
 import org.sakaiproject.nakamura.api.lite.DataFormatException;
 import org.sakaiproject.nakamura.api.lite.RemoveProperty;
@@ -47,6 +48,8 @@ import org.sakaiproject.nakamura.api.lite.StorageClientUtils;
 import org.sakaiproject.nakamura.api.lite.StorageConstants;
 import org.sakaiproject.nakamura.api.lite.accesscontrol.AccessDeniedException;
 import org.sakaiproject.nakamura.api.lite.util.PreemptiveIterator;
+import org.sakaiproject.nakamura.lite.CachingManager;
+import org.sakaiproject.nakamura.lite.DirectCacheAccess;
 import org.sakaiproject.nakamura.lite.content.FileStreamContentHelper;
 import org.sakaiproject.nakamura.lite.content.InternalContent;
 import org.sakaiproject.nakamura.lite.content.StreamedContentHelper;
@@ -71,6 +74,10 @@ import com.google.common.collect.Sets;
 
 public class JDBCStorageClient implements StorageClient, RowHasher, Disposer {
 
+
+
+
+
     public class SlowQueryLogger {
         // only used to define the logger.
     }
@@ -80,6 +87,8 @@ public class JDBCStorageClient implements StorageClient, RowHasher, Disposer {
     static final Logger SQL_LOGGER = LoggerFactory.getLogger(SlowQueryLogger.class);
     private static final String SQL_VALIDATE = "validate";
     private static final String SQL_CHECKSCHEMA = "check-schema";
+    private static final String SQL_NAME_PADDING = "sql-name-padding";
+    private static final String SQL_MAX_NAME_LENGTH = "sql-max-name-length";
     private static final String SQL_COMMENT = "#";
     private static final String SQL_EOL = ";";
     public static final String SQL_INDEX_COLUMN_NAME_SELECT = "index-column-name-select";
@@ -128,6 +137,8 @@ public class JDBCStorageClient implements StorageClient, RowHasher, Disposer {
     private long verySlowQueryThreshold;
     private Object desponseLock = new Object();
     private StorageClientListener storageClientListener;
+    private boolean sqlNamePadding;
+    private int maxNameLength;
 
     public JDBCStorageClient(JDBCStorageClientPool jdbcStorageClientConnectionPool,
             Map<String, Object> properties, Map<String, Object> sqlConfig, Set<String> indexColumns, Set<String> indexColumnTypes, Map<String, String> indexColumnsNames) throws SQLException,
@@ -153,6 +164,8 @@ public class JDBCStorageClient implements StorageClient, RowHasher, Disposer {
         if (rowidHash == null) {
             rowidHash = "MD5";
         }
+        this.sqlNamePadding = Boolean.parseBoolean(StorageClientUtils.getSetting(getSql(SQL_NAME_PADDING),"false"));
+        this.maxNameLength = Integer.parseInt(StorageClientUtils.getSetting(getSql(SQL_MAX_NAME_LENGTH),"50"));
         active = true;
         if ( indexColumnsNames != null ) {
             indexer = new WideColumnIndexer(this,indexColumnsNames, indexColumnTypes, sqlConfig);
@@ -177,9 +190,20 @@ public class JDBCStorageClient implements StorageClient, RowHasher, Disposer {
             throws StorageClientException {
         checkClosed();
         String rid = rowHash(keySpace, columnFamily, key);
-        return internalGet(keySpace, columnFamily, rid);
+        return internalGet(keySpace, columnFamily, rid, null); // gets through this route should have already consulted the cache.
     }
-    Map<String, Object> internalGet(String keySpace, String columnFamily, String rid) throws StorageClientException {
+    Map<String, Object> internalGet(String keySpace, String columnFamily, String rid, CachingManager cachingManager) throws StorageClientException {
+        if ( cachingManager instanceof DirectCacheAccess ) {
+            CacheHolder ch = cachingManager.getFromCache(rid);
+            if ( ch != null ) {
+                Map<String, Object> cached = ch.get();
+                if ( cached == null ) {
+                    // the cache was an empty object, we respond with empty.
+                    cached = Maps.newHashMap();
+                }
+                return cached;
+            }
+        }
         ResultSet body = null;
         Map<String, Object> result = Maps.newHashMap();
         PreparedStatement selectStringRow = null;
@@ -218,9 +242,12 @@ public class JDBCStorageClient implements StorageClient, RowHasher, Disposer {
             close(body, "B");
             close(selectStringRow, "A");
         }
+        if ( cachingManager instanceof DirectCacheAccess) {
+            cachingManager.putToCache(rid, new CacheHolder(result));
+        }
         return result;
     }
-
+    
     public String rowHash(String keySpace, String columnFamily, String key)
             throws StorageClientException {
         MessageDigest hasher;
@@ -760,17 +787,17 @@ public class JDBCStorageClient implements StorageClient, RowHasher, Disposer {
         return jcbcStorageClientConnection.getConnection();
     }
 
-    public DisposableIterator<Map<String, Object>> listChildren(String keySpace, String columnFamily, String key) throws StorageClientException {
+    public DisposableIterator<Map<String, Object>> listChildren(String keySpace, String columnFamily, String key, CachingManager cachingManager) throws StorageClientException {
         // this will load all child object directly.
         String hash = rowHash(keySpace, columnFamily, key);
         LOGGER.debug("Finding {}:{}:{} as {} ",new Object[]{keySpace,columnFamily, key, hash});
-        return find(keySpace, columnFamily, ImmutableMap.of(InternalContent.PARENT_HASH_FIELD, (Object)hash, StorageConstants.CUSTOM_STATEMENT_SET, "listchildren"));
+        return find(keySpace, columnFamily, ImmutableMap.of(InternalContent.PARENT_HASH_FIELD, (Object)hash, StorageConstants.CUSTOM_STATEMENT_SET, "listchildren"), cachingManager);
     }
 
     public DisposableIterator<Map<String,Object>> find(final String keySpace, final String columnFamily,
-            Map<String, Object> properties) throws StorageClientException {
+            Map<String, Object> properties, CachingManager cachingManager) throws StorageClientException {
         checkClosed();
-        return indexer.find(keySpace, columnFamily, properties);
+        return indexer.find(keySpace, columnFamily, properties, cachingManager);
         
 
     }
@@ -993,11 +1020,10 @@ public class JDBCStorageClient implements StorageClient, RowHasher, Disposer {
             }
             // maxCols contiains the max col number for each cf.
             // cnames contains a map of column Families each containing a map of columns with numbers.
-            
             for (String k : Sets.union(indexColumns, AUTO_INDEX_COLUMNS)) {
                 String[] cf = StringUtils.split(k,":",2);
                 if ( !cnames.containsKey(k) ) {
-                    String cv = makeNameSafeSQL(cf[1]);
+                    String cv = makeNameSafeSQL(cf[1], sqlNamePadding, maxNameLength);
                     if ( usedColumns.contains(cf[0]+":"+cv)) {
                         LOGGER.info(
                                 "Column already exists, please provide explicit mapping indexing {}  already used column {} ",
@@ -1079,20 +1105,33 @@ public class JDBCStorageClient implements StorageClient, RowHasher, Disposer {
         }
     }
 
-    private String makeNameSafeSQL(String name) {
+    private String makeNameSafeSQL(String name, boolean padding, int maxLength) {
         if ( COLUMN_NAME_MAPPING.containsKey(name)) {
             return COLUMN_NAME_MAPPING.get(name);
         }
         char[] c = name.toCharArray();
-        for(int i = 0; i < c.length; i++) {
+        char[] cout = new char[c.length];
+        int e = 0;
+        int start = 0;
+        if ( c[0] == '_') {
+            if ( padding ) {
+                cout[e] = 'X';
+                e++;
+            }
+            start = 1;
+        } 
+        for(int i = start; i < c.length; i++) {
             if ( !Character.isLetterOrDigit(c[i]) ) {
-                c[i] = '_';
+                if ( !padding ) {
+                    cout[e] = '_';
+                    e++;
+                }
+            } else {
+                cout[e] = c[i];
+                e++;
             }
         }
-        if ( c[0] == '_') {
-            c[0] = 'X';
-        }
-        return new String(c);
+        return new String(cout,0,Math.min(e, maxLength));
     }
 
     public long getSlowQueryThreshold() {

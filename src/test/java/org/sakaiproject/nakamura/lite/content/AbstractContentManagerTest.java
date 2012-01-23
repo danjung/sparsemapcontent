@@ -745,6 +745,31 @@ public abstract class AbstractContentManagerTest {
   }
 
   @Test
+  public void testCanReuseAContentPath() throws Exception {
+      String path = "/pathToReuse" + System.currentTimeMillis();
+      AuthenticatorImpl AuthenticatorImpl = new AuthenticatorImpl(client, configuration);
+      User currentUser = AuthenticatorImpl.authenticate("admin", "admin");
+
+      AccessControlManagerImpl accessControlManager = new AccessControlManagerImpl(client,
+          currentUser, configuration, sharedCache, new LoggingStorageListener(), principalValidatorResolver);
+
+      ContentManagerImpl contentManager = new ContentManagerImpl(client,
+          accessControlManager, configuration, sharedCache, new LoggingStorageListener());
+      contentManager.update(new Content(path, ImmutableMap.of("prop1", (Object) "value1", "prop2", "valueProp2")));
+      Content content = contentManager.get(path);
+      Assert.assertEquals("This property should have been updated.", content.getProperty("prop1"), "value1");
+      Assert.assertEquals("This property should have been updated.", content.getProperty("prop2"), "valueProp2");
+      contentManager.delete(path);
+      content = contentManager.get(path);
+      Assert.assertNull(content);
+      contentManager.update(new Content(path, ImmutableMap.of("prop1", (Object) "value2")));
+      content = contentManager.get(path);
+      Assert.assertNotNull(content);
+      Assert.assertEquals("This property should have been updated.", content.getProperty("prop1"), "value2");
+      Assert.assertFalse("This property should have been updated.", content.hasProperty("prop2"));
+  }
+
+  @Test
   public void testListChildren() throws StorageClientException, AccessDeniedException {
 	  AuthenticatorImpl AuthenticatorImpl = new AuthenticatorImpl(client, configuration);
 	    User currentUser = AuthenticatorImpl.authenticate("admin", "admin");
