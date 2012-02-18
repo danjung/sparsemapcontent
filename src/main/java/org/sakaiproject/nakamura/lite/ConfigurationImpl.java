@@ -56,7 +56,8 @@ public class ConfigurationImpl implements Configuration {
     protected static final String DEFAULT_INDEX_COLUMN_NAMES = "au:rep:principalName,au:type,cn:sling:resourceType," +
     		"cn:sakai:pooled-content-manager,cn:sakai:messagestore,cn:sakai:type,cn:sakai:marker,cn:sakai:tag-uuid," +
     		"cn:sakai:contactstorepath,cn:sakai:state,cn:_created,cn:sakai:category,cn:sakai:messagebox,cn:sakai:from," +
-    		"cn:sakai:subject";
+        "cn:sakai:subject," +
+        "au:newemail,au:email,au:eppn";
 
     @Property(value=DEFAULT_INDEX_COLUMN_NAMES)
     protected static final String INDEX_COLUMN_NAMES = "index-column-names";
