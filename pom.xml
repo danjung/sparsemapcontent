@@ -5,7 +5,7 @@
     <groupId>org.sakaiproject.nakamura</groupId>
     <artifactId>core-base</artifactId>
     <version>2</version>
-    <relativePath>parent/pom.xml</relativePath>
+    <!-- <relativePath>parent/pom.xml</relativePath> -->
   </parent>
   <groupId>org.sakaiproject.nakamura</groupId>
   <artifactId>org.sakaiproject.nakamura.core</artifactId>
@@ -24,7 +24,7 @@
 		<url>http://github.com/rSmart/sparsemapcontent/</url>
   </scm>
   <prerequisites>
-    <maven>2.2.1</maven>
+    <maven>3.0.3</maven>
   </prerequisites>
   <build>
 		<extensions>
