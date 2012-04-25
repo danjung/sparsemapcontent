@@ -444,7 +444,7 @@ public class AuthorizableManagerImpl extends CachingManager implements Authoriza
             if (!thisUser.isAdmin()) {
                 User u = authenticator.authenticate(id, oldPassword);
                 if (u == null) {
-                    throw new StorageClientException(
+                    throw new IllegalArgumentException(
                             "Unable to change passwords, old password does not match");
                 }
             }
@@ -595,7 +595,7 @@ public class AuthorizableManagerImpl extends CachingManager implements Authoriza
         if ( c != null ) {
             String type = getType(c);
             storeListener.onUpdate(Security.ZONE_AUTHORIZABLES, id,
-                    accessControlManager.getCurrentUserId(),  type, false, c.getOriginalProperties(),
+                    accessControlManager.getCurrentUserId(),  type, false, null,
                     new String[] { type });
         }
     }
@@ -607,7 +607,7 @@ public class AuthorizableManagerImpl extends CachingManager implements Authoriza
                 while(all.hasNext()) {
                     Map<String, Object> c = all.next().getProperties();
                     if ( c.containsKey(Authorizable.ID_FIELD) ) {
-                        storeListener.onUpdate(Security.ZONE_AUTHORIZABLES, (String)c.get(Authorizable.ID_FIELD), User.ADMIN_USER, getType(c), false, ImmutableMap.copyOf(c), (String[]) null);                    
+                        storeListener.onUpdate(Security.ZONE_AUTHORIZABLES, (String)c.get(Authorizable.ID_FIELD), User.ADMIN_USER, getType(c), false, null, (String[]) null);
                     }
                 }
             } finally {

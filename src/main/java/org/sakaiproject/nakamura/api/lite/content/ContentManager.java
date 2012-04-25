@@ -83,23 +83,44 @@ public interface ContentManager {
      *             at that location and possibly at parent locations.
      */
     String saveVersion(String path) throws StorageClientException, AccessDeniedException;
+  
+    String saveVersion(String path, Map<String, Object> versionMetadata) throws StorageClientException, AccessDeniedException;
 
     /**
-     * Update or create the content object, and intermediate path if necessary,
-     * stored at the location indicated by the path of the content object
-     * supplied.
-     * 
-     * @param content
-     *            the content object to update.
-     * @throws StorageClientException
-     *             if there was a problem with the operation.
-     * @throws AccessDeniedException
-     *             if the user is unable to write the object at the path. This
-     *             is not an indication that the objected at the path exists,
-     *             just that the user can't write anything at that location and
-     *             possibly at parent locations.
-     */
-    void update(Content content) throws AccessDeniedException, StorageClientException;
+   * Update or create the content object, and intermediate path if necessary,
+   * stored at the location indicated by the path of the content object
+   * supplied.
+   *
+   * @param content
+   *            the content object to update.
+   * @throws StorageClientException
+   *             if there was a problem with the operation.
+   * @throws AccessDeniedException
+   *             if the user is unable to write the object at the path. This
+   *             is not an indication that the objected at the path exists,
+   *             just that the user can't write anything at that location and
+   *             possibly at parent locations.
+   */
+  void update(Content content) throws AccessDeniedException, StorageClientException;
+
+  /**
+   * Update or create the content object, and intermediate path if necessary,
+   * stored at the location indicated by the path of the content object
+   * supplied.
+   *
+   * @param content
+   *            the content object to update.
+   * @param withTouch
+   *            if false, the modification timestamp will not be updated. Only admin can use this option.
+   * @throws StorageClientException
+   *             if there was a problem with the operation.
+   * @throws AccessDeniedException
+   *             if the user is unable to write the object at the path. This
+   *             is not an indication that the objected at the path exists,
+   *             just that the user can't write anything at that location and
+   *             possibly at parent locations.
+   */
+  void update(Content content, boolean withTouch) throws AccessDeniedException, StorageClientException;
 
     /**
      * Delete the content object at the path indicated.
@@ -115,6 +136,7 @@ public interface ContentManager {
      *             possibly at parent locations.
      */
     void delete(String path) throws AccessDeniedException, StorageClientException;
+    void delete(String path, boolean recurse) throws AccessDeniedException, StorageClientException;
 
     /**
      * Write a body stream associated with the content item at the specified
@@ -231,8 +253,8 @@ public interface ContentManager {
             AccessDeniedException, IOException;
 
     /**
-     * Move a content item from to.
-     * 
+     * Move a content item from to. Equivalent to calling move(from, to, false, true)
+     *
      * @param from
      *            the source, must exist
      * @param to
@@ -240,22 +262,41 @@ public interface ContentManager {
      * @throws StorageClientException
      * @throws AccessDeniedException
      */
-    void move(String from, String to) throws AccessDeniedException, StorageClientException;
+    List<ActionRecord> move(String from, String to) throws AccessDeniedException, StorageClientException;
 
   /**
-   * Move a content item, and all child items, from to. Acts recursively.
-   * 
+   * Move a content item from to. Equivalent to calling move(from, to, force, true)
+   *
    * @param from
    *          the source, must exist
    * @param to
    *          the destination must not exist.
-   * @return a List of the moves performed (from and to paths). Listed bottom-up,
-   *         path-wise.
+   * @param force
+   *          Whether to forcefully move to the destination (i.e. overwrite)
    * @throws StorageClientException
    * @throws AccessDeniedException
    */
-  List<ActionRecord> moveWithChildren(String from, String to)
-      throws AccessDeniedException,
+  List<ActionRecord> move(String from, String to, boolean force) throws AccessDeniedException, StorageClientException;
+
+  /**
+   * Move a content item from to.
+   *
+   * @param from
+   *          the source, must exist
+   * @param to
+   *          the destination must not exist.
+   * @param force
+   *          Whether to forcefully move to the destination (i.e. overwrite)
+   * @param keepHistory
+   *          Whether to keep the history of the destination. If
+   *          <code>true</cod>, append <code>from</code> as the latest content at
+   *          <code>to</code>. If <code>false</code>, delete <code>to</code> before
+   *          copying <code>from</code>.
+   * @throws StorageClientException
+   * @throws AccessDeniedException
+   */
+  List<ActionRecord> move(String from, String to, boolean force,
+      boolean keepDestinationHistory) throws AccessDeniedException,
       StorageClientException;
 
   /**
@@ -382,6 +423,31 @@ public interface ContentManager {
      */
     void triggerRefreshAll() throws StorageClientException;
 
+    /**
+     * Replace the content at <code>content.getPath()</code> with <code>content</code>. This
+     * sets any properties in <code>content</code> to <code>new RemoveProperty()</code> if
+     * there exists a property in the current version at <code>content.getPath()</code> that
+     * is missing from <code>content</code>.
+     *
+     * @param content
+     *          The content to replace at <code>content.getPath()</code>.
+     * @throws AccessDeniedException
+     * @throws StorageClientException
+     */
+    void replace(Content content) throws AccessDeniedException, StorageClientException;
 
-
+    /**
+     * Replace the content at <code>content.getPath()</code> with <code>content</code>. This
+     * sets any properties in <code>content</code> to <code>new RemoveProperty()</code> if
+     * there exists a property in the current version at <code>content.getPath()</code> that
+     * is missing from <code>content</code>.
+     *
+     * @param content
+     *          The content to replace at <code>content.getPath()</code>.
+     * @param withTouch
+     *          Whether to the update timestamp of the content.
+     * @throws AccessDeniedException
+     * @throws StorageClientException
+     */
+    void replace(Content content, boolean withTouch) throws AccessDeniedException, StorageClientException;
 }
