@@ -818,9 +818,15 @@ public class JDBCStorageClient implements StorageClient, RowHasher, Disposer {
         }
         PreparedStatement tpst = null;
         ResultSet trs = null;
+        Boolean oldAutoCommitValue = null;
+        Connection conn = null;
         try {
             LOGGER.debug("Preparing {} ", sql);
-            tpst = jcbcStorageClientConnection.getConnection().prepareStatement(sql);
+
+            conn = jcbcStorageClientConnection.getConnection();
+            oldAutoCommitValue = conn.getAutoCommit();
+            conn.setAutoCommit(false);
+            tpst = conn.prepareStatement(sql);
             inc("iterator");
             tpst.clearParameters();
 
@@ -907,6 +913,13 @@ public class JDBCStorageClient implements StorageClient, RowHasher, Disposer {
             throw new StorageClientException(e.getMessage() + " SQL Statement was " + sql,
                     e);
         } finally {
+            if (oldAutoCommitValue != null) {
+              try {
+                conn.setAutoCommit(oldAutoCommitValue);
+              } catch (Exception e) {
+                //noop
+              }
+            }
             // trs and tpst will only be non null if control has not been passed
             // to the iterator.
             try {
