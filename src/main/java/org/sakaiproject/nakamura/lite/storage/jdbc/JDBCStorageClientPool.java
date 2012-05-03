@@ -75,7 +75,10 @@ public class JDBCStorageClientPool extends AbstractClientConnectionPool {
     private static final String USERNAME = "username";
     @Property(value = { "" })
     private static final String PASSWORD = "password";
- 
+
+    @Property(intValue = 500)
+    protected static final String FETCH_SIZE = "fetch.size";
+
     @Reference(cardinality=ReferenceCardinality.OPTIONAL_UNARY, policy=ReferencePolicy.DYNAMIC)
     private StorageCacheManager storageManagerCache;
 
