@@ -139,6 +139,7 @@ public class JDBCStorageClient implements StorageClient, RowHasher, Disposer {
     private StorageClientListener storageClientListener;
     private boolean sqlNamePadding;
     private int maxNameLength;
+    private int fetchSize = 500;
 
     public JDBCStorageClient(JDBCStorageClientPool jdbcStorageClientConnectionPool,
             Map<String, Object> properties, Map<String, Object> sqlConfig, Set<String> indexColumns, Set<String> indexColumnTypes, Map<String, String> indexColumnsNames) throws SQLException,
@@ -184,6 +185,9 @@ public class JDBCStorageClient implements StorageClient, RowHasher, Disposer {
             verySlowQueryThreshold = Long.parseLong((String)sqlConfig.get(VERY_SLOW_QUERY_THRESHOLD));
         }
 
+        if (properties.containsKey(JDBCStorageClientPool.FETCH_SIZE)) {
+          fetchSize = (Integer)properties.get(JDBCStorageClientPool.FETCH_SIZE);
+        }
     }
 
     public Map<String, Object> get(String keySpace, String columnFamily, String key)
@@ -820,12 +824,22 @@ public class JDBCStorageClient implements StorageClient, RowHasher, Disposer {
         ResultSet trs = null;
         try {
             LOGGER.debug("Preparing {} ", sql);
-            tpst = jcbcStorageClientConnection.getConnection().prepareStatement(sql);
+
+            final Connection conn = jcbcStorageClientConnection.getConnection();
+            final Boolean oldAutoCommitValue = conn.getAutoCommit();
+            conn.setAutoCommit(false);
+            tpst = conn.prepareStatement(sql);
             inc("iterator");
             tpst.clearParameters();
+            try {
+              tpst.setFetchSize(fetchSize);
+            } catch (SQLException sqle) {
+              LOGGER.warn("could not enable use of DB cursors for listAll - all objects may be read into memory", sqle);
+            }
 
             long qtime = System.currentTimeMillis();
             trs = tpst.executeQuery();
+
             qtime = System.currentTimeMillis() - qtime;
             if ( qtime > slowQueryThreshold && qtime < verySlowQueryThreshold) {
                 SQL_LOGGER.warn("Slow Query {}ms {} params:[{}]",new Object[]{qtime,sql});
@@ -881,6 +895,15 @@ public class JDBCStorageClient implements StorageClient, RowHasher, Disposer {
                 public void close() {
                     if (open) {
                         open = false;
+
+                        if (oldAutoCommitValue != null) {
+                          try {
+                            conn.setAutoCommit(oldAutoCommitValue);
+                          } catch (Exception e) {
+                            //noop
+                          }
+                        }
+
                         try {
                             if (rs != null) {
                                 rs.close();
