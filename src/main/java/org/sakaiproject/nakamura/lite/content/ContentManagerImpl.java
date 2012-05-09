@@ -355,8 +355,7 @@ public class ContentManagerImpl extends CachingManager implements ContentManager
             try {
                 while(all.hasNext()) {
                     Map<String, Object> c = all.next().getProperties();
-                    if ( c.containsKey(PATH_FIELD) && !c.containsKey(STRUCTURE_UUID_FIELD)) {
-                        
+                    if ( exists(c) && c.containsKey(PATH_FIELD) && !c.containsKey(STRUCTURE_UUID_FIELD)) {
                         eventListener.onUpdate(Security.ZONE_CONTENT, (String)c.get(PATH_FIELD), User.ADMIN_USER, getResourceType(c), false, null, "op:update");
                     }
                 }
@@ -461,6 +460,10 @@ public class ContentManagerImpl extends CachingManager implements ContentManager
                     ImmutableMap.of(DELETED_FIELD, (Object) TRUE), false);
             eventListener.onDelete(Security.ZONE_CONTENT, path, accessControlManager.getCurrentUserId(), resourceType, contentBeforeDelete);
         }
+    }
+
+    public static boolean exists(Map<String, Object> map) {
+        return map != null && map.size() > 0 && !TRUE.equals(map.get(DELETED_FIELD));
     }
 
     public long writeBody(String path, InputStream in) throws StorageClientException,
