@@ -29,6 +29,21 @@ org.sakaiproject.nakamura.core-1.3.4
 * KERN-2584 Incorrect password is a user error, so it needs IllegalArgumentException instead of StorageClientException c81295d
 * reduce event payload by not copying content properties during triggerRefresh and triggerRefreshAll 82c2eb7
 
+org.sakaiproject.nakamura.core-1.3.3.2-rsmart
+---------------------------------------------
+* [maven-release-plugin] prepare release org.sakaiproject.nakamura.core-1.3.3.2-rsmart 4615ce6
+* ACAD-1030 rollback artifact version to next release version d0e8fda
+* ACAD-1030 rev'd pom to reflect cherry-picked fixes 609d95e
+* ACAD-1030 merged: SPARSE-193 Do not send deleted SparseMapContent records to indexing and migrator clients 6ed6130
+* reduce event payload by not copying content properties during triggerRefresh and triggerRefreshAll 63b6163
+* [maven-release-plugin] prepare for next development iteration e337cfe
+
+org.sakaiproject.nakamura.core-1.3.3.1-rsmart
+---------------------------------------------
+* [maven-release-plugin] prepare release org.sakaiproject.nakamura.core-1.3.3.1-rsmart 8995127
+* Merge pull request #4 from rSmart/ACAD-977 d911d14
+* ACAD-977 prepare for a 1.3.3.1 maint release ac31793
+
 org.sakaiproject.nakamura.core-1.3.3-rsmart
 -------------------------------------------
 * [maven-release-plugin] prepare release org.sakaiproject.nakamura.core-1.3.3-rsmart-SNAPSHOT 1e6f140
